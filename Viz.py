@@ -1,34 +1,51 @@
+'''
+
+    Autor: Jovani Brasil
+    Email: jovanibrasil@gmail.com
+
+'''
+
 import sys
-import numpy
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import scipy.optimize as optimization
 from PIL import Image
 
 
 def readdata(filename):
-   
     '''
+        Faz leitura dos dados do arquivo de entrada.
+
+        filename -- Nome arquivo de entrada.
+
     '''
-    
+
+    print "Lendo arquivo de coeficientes ..."
+
     global coefs_data, levels
     coefs_data = []
     
     with open(filename, "r") as f:
         content = f.read().splitlines()
     
-        levels = int(content[0])
-    
-        for i in range(1, len(content)):
+        for i in range(0, len(content)):
             e = content[i]
+             
             l = []
             s = e.replace(" end", "")
             l = [float(e) for e in s.split(" ")] 
             coefs_data.append(l)
     f.close()
 
+    print filename, "lido com sucesso!"
+
 
 def func(X, c):
+    '''
+        Funcao utilizada para construir a imagem.
+
+        X -- Tupla com coordenadas x e y.
+        c - Vetor de coeficientes.
+
+    '''
 
     x, y = X
     x2 = x*x
@@ -43,54 +60,74 @@ def gen_img():
 
     '''
 
+    print "Gerando imagem aproximada ..."
+
     global gray_img, result_img, levels
-    
+
     width, height = gray_img.size
-   
+
     result_data = result_img.load()
 
-    quads = 1
-    if levels == 0:
-        quads = 1
-    else:
-        quads = 2 * levels
-   
+    quads = pow(2, levels)   
     stepx = width/quads
-    stepy = height/quads 
-   
-    # ----- para cada quadro de x ate y ------
+    stepy = height/quads
+
+    # Contador de quadrantes.
+    count = 0;
+
+    # Inicializa ponteiros x (horizontal) e  y (vertical)
     x = y = 0
-    for stepyc in range(0, quads):
-        for stepxc in range(0, quads):
-            #print "Processando quadrante =", stepxc, stepyc , "(x, y)"  
 
-            ystepy = y+stepy
-            xstepx = x+stepy
+    stepyc = stepxc = True
 
-            # Testa se existe sobra
-            if stepy * quads < height and stepyc == quads-1:
-                ystepy = (height - ystepy) + ystepy
-            if stepx * quads < width and stepxc == quads-1:
-                xstepx = (width - xstepx) + xstepx
+    while stepyc:
 
-            coefficients = coefs_data[stepxc + (quads * stepyc)]
+        ystepy = y+stepy
 
-            # ------ aplica os resultados gerados ----
+        # Condicao de parada.
+        if ystepy >= height: 
+            ystepy = height
+            stepyc = False
+
+        stepxc = True
+
+        while stepxc:
+            
+            vl = []
+            xl = []
+            yl = [] 
+
+            # Atualiza posicao dentro da imagem.
+            xstepx = x+stepx
+
+            # Condicao de parada. 
+            if xstepx >= width:
+                xstepx = width
+                stepxc = False
+
+            coefficients = coefs_data[count]
+            count += 1
+
+            # Gera valores a atribui a imagem.
             for yc in range(y, ystepy):
-                for xc in range(x, xstepx):
-                    # prepara dados 
+                for xc in range(x, xstepx): 
                     result_data[xc, yc] = int(func((xc, yc), coefficients))
 
-            # Atualiza x
+            # Atualiza ponteiro horizontal.
             x = x + stepx
-        # Atualiza x e y
+        # Retorna ponteiro horizontal ao inicio.
         x = 0
+        # Atualiza ponteiro vertical.
         y = y+stepy
+
+    print "Geracao concluida!"
+
 
 def main(args):
     '''
-        args[0] Nome do arquivo com extensao.
-        
+        args[0]             -- Nome do arquivo com extensao.
+        args[1] (opcional)  -- Salvar resultado no formato PGM.                        
+
     '''
 
     global gray_img
@@ -100,21 +137,28 @@ def main(args):
     global levels
 
     datafile_name = args[0]
-    grey_img_name = datafile_name.replace("_data.txt", "").replace("_", ".")
+    array = datafile_name.replace("_data.txt", "").replace("-", ".").split("_")
+    gray_img_name = array[0]
+    levels = int(array[1])
 
     # Faz leitura do arquivo com os coeficientes.
     readdata(datafile_name)
 
     # Carrega imagem original e inicializa a resultado. 
-    gray_img = Image.open(grey_img_name)
+    gray_img = Image.open(gray_img_name)
     result_img = Image.new('L', gray_img.size)
 
     # Gera valores dos pixels da imagem resultado.
     gen_img()
 
+    if(len(args) > 1):
+        n = datafile_name.replace(".", "_") + ".pgm"
+        result_img.save(n)
+        print  n, "salvo com sucesso!"
+
     # Mostra as duas lado a lado.
-    gray_img.show(title = "0 Niveis")
-    result_img.show(title =str(levels)+" Niveis")
+    gray_img.show(title="0 Niveis")
+    result_img.show(title=str(levels)+" Niveis")
 
 
 if __name__ == "__main__":

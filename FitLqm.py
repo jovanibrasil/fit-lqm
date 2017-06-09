@@ -1,36 +1,48 @@
+'''
+
+    Autor: Jovani Brasil
+    Email: jovanibrasil@gmail.com
+
+    TODO
+
+    - captura de erros.
+
+'''
+
 import sys
-import numpy
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import scipy.optimize as optimization
 from PIL import Image
 
 def savedata(levels):
     '''
         Salva resultados gerados em um arquivo texto.
-        
-        Ordem do arquivo:
+        Cada linha representa um conjunto de coeficientes para um quadrantes.
 
-        1. Nome da imagem.
-        2. Quantidade de polinomios gerados (ou numero de quadrantes, pois
-        cada polinomio representa um quadrante).
-        3. Lista de coeficientes para cada polinomio. 
+        levels - Numero de niveis executados.
 
     '''
-    
+
     global coefs_data
-    
-    f = open( img_name.replace('.', '_') + "_data.txt", "w") 
-    f.write(str(levels)+"\n")
+
+    f_name = img_name.replace('.', '-') + "_" + str(levels) + "_data.txt"
+
+    print "Salvando arquivo com coeficientes ... "
+
+    f = open(f_name, "w") 
     for e in coefs_data:
         for n in e:
             f.write(str(n) + " ")
         f.write("end\n")
     f.close()
 
+    print "Arquivo", f_name, "salvo!"
+
 
 def func(X, a, b, c, d, e, f, g, h, i):
-    
+    '''
+        Funcao utilizada pelo metodo.
+    '''
+
     x, y = X
     x2 = x*x
     y2 = y*y
@@ -40,61 +52,84 @@ def func(X, a, b, c, d, e, f, g, h, i):
 def solve(levels):
 
     '''
-        
-        Description ...
+        Aplica o metodo de ajuste dos minimos quadrados em uma imagem.
 
-        levels  -   Quantidade de divisoes que devem ser geradas na imagem.
+
+        levels  --  Quantidade de divisoes que devem ser geradas na imagem.
+                    
+        Dependendo da quantidade niveis de subdivisao e do tamanho
+        da imagem podem ser necessarios quadrantes extras na extremidades
+        para manter a qualidade dos resultados. Isso devido ao arredondamento
+        para inteiro das dimensoes dos quadrantes, necessario para para
+        trabalharmos com os indices da matriz. 
+
     '''
 
-    global color_img, gray_img, coefs_data
+    print "Aplicando metodo de ajuste ..."
+
+    global gray_img, coefs_data
     
     width, height = gray_img.size
         
     img = gray_img.load()
-   
-    quads = 2 * levels
+
+    quads = pow(2, levels)
    
     stepx = width/quads
     stepy = height/quads
     
-    # ----- para cada quadro de x ate y ------
+    # Inicializa ponteiros x (horizontal) e  y (vertical)
     x = y = 0
-    for stepyc in range(0, quads):
-        for stepxc in range(0, quads):
-            #print "Processando quadrante =", stepxc, stepyc , "(x, y)"  
 
-            ystepy = y+stepy
-            xstepx = x+stepy
+    stepyc = stepxc = True
 
-            # Testa se existe sobra
-            if stepy * quads < height and stepyc == quads-1:
-                ystepy = (height - ystepy) + ystepy
-            if stepx * quads < width and stepxc == quads-1:
-                xstepx = (width - xstepx) + xstepx
+    while stepyc:
 
-            # ------ percorre o quadro -------
+        ystepy = y+stepy
+
+        # Condicao de parada.
+        if ystepy >= height: 
+            ystepy = height
+            stepyc = False
+
+        stepxc = True
+
+        while stepxc:
+            
             vl = []
             xl = []
-            yl = []
+            yl = [] 
+
+            # Atualiza posicao dentro da imagem.
+            xstepx = x+stepx
+
+            # Condicao de parada. 
+            if xstepx >= width:
+                xstepx = width
+                stepxc = False
+
+            # Percorre o quadro a partir dos ponteiros.
             for yc in range(y, ystepy):
                 for xc in range(x, xstepx):
-                    # prepara dados 
+                    # Prepara dados para o metodo. 
                     vl.append(img[xc, yc])                    
                     xl.append(xc)
                     yl.append(yc)
-            # ------ realiza operacao de ajuste -----
-            x0 = numpy.array([0.0]*9)
-            coefficients = optimization.curve_fit(func, (xl, yl), vl, x0)[0]
-            
-            # Save coefficients
+
+            # Realiza opercao de ajuste dos minimos quadrados.
+            coefficients = optimization.curve_fit(func, (xl, yl), vl, [0.0]*9)[0]
+
+            # Armazena coeficientes.
             coefs_data.append(coefficients)
 
-            # Atualiza x
+            # Atualiza ponteiro horizontal.
             x = x + stepx
-        # Atualiza x e y
+        # Retorna ponteiro horizontal ao inicio.
         x = 0
+        # Atualiza ponteiro vertical.
         y = y+stepy
 
+    print "Processo de ajuste concluido!"
 
 def main(args):
     '''
@@ -102,22 +137,16 @@ def main(args):
         args[1] Quantidade de niveis.
     '''
 
-    global color_img
     global gray_img
     global coefs_data
     global img_name
 
-    # Carrega uma imagem.
     coefs_data = []
-    #img = Image.open("br.png")
-
     img_name = args[0]
 
-    color_img = Image.open(img_name)
-    gray_img = color_img.convert('L')
-
-    result_img = Image.new('L', gray_img.size)
-
+    print "Lendo", img_name, "..."
+    gray_img = Image.open(img_name)
+    print "Leitura Realizada com sucesso!"
     solve(int(args[1]))
 
     savedata(int(args[1]))
